@@ -5,11 +5,16 @@ box="ubuntu/xenial64"
 box_version="20180831.0.0"
 mem="2048"
 cpu="2"
-master_ip="192.168.205.10"
+24bit_subnet="192.168.205"
+master_ip="#{24bit_subnet}.10"
+node_suffix="xenial"
+vbox_group="K8s Ubuntu Xenial"
+docker_version="19.03.8"
+pod_net_cidr="10.6.0.0/16"
 
 servers = [
     {
-        :name => "k8s-head-xenial",
+        :name => "k8s-head-#{node_suffix}",
         :type => "master",
         :box => box,
         :box_version => box_version,
@@ -18,20 +23,20 @@ servers = [
         :cpu => "2"
     },
     {
-        :name => "k8s-node-1-xenial",
+        :name => "k8s-node-1-#{node_suffix}",
         :type => "node",
         :box => box,
         :box_version => box_version,
-        :eth1 => "192.168.205.11",
+        :eth1 => "#{24bit_subnet}.11",
         :mem => mem,
         :cpu => cpu 
     },
     {
-        :name => "k8s-node-2-xenial",
+        :name => "k8s-node-2-#{node_suffix}",
         :type => "node",
         :box => box,
         :box_version => box_version,
-        :eth1 => "192.168.205.12",
+        :eth1 => "#{24bit_subnet}.12",
         :mem => mem,
         :cpu => cpu 
     }
@@ -41,7 +46,7 @@ servers = [
 $configureBox = <<-SCRIPT
 
     # install docker version 19.03
-    DOCKER_VER="19.03.8"
+    DOCKER_VER="#{docker_version}"
     # Install Docker CE
     ## Set up the repository:
     ### Install packages to allow apt to use a repository over HTTPS
@@ -122,7 +127,7 @@ $configureMaster = <<-SCRIPT
 
     # install k8s master
     HOST_NAME=$(hostname -s)
-    kubeadm init --apiserver-advertise-address=$IP_ADDR --apiserver-cert-extra-sans=$IP_ADDR  --node-name $HOST_NAME --pod-network-cidr=10.16.0.0/16
+    kubeadm init --apiserver-advertise-address=$IP_ADDR --apiserver-cert-extra-sans=$IP_ADDR  --node-name $HOST_NAME --pod-network-cidr=#{pod_net_cidr}
 
     #copying credentials to regular user - vagrant
     sudo --user=vagrant mkdir -p /home/vagrant/.kube
@@ -145,7 +150,7 @@ SCRIPT
 $configureNode = <<-SCRIPT
     echo "This is worker"
     apt-get install -y sshpass
-    sshpass -p "vagrant" scp -o StrictHostKeyChecking=no vagrant@192.168.205.10:/etc/kubeadm_join_cmd.sh .
+    sshpass -p "vagrant" scp -o StrictHostKeyChecking=no vagrant@#{master_ip}:/etc/kubeadm_join_cmd.sh .
     sh ./kubeadm_join_cmd.sh
 SCRIPT
 
@@ -158,7 +163,7 @@ Vagrant.configure("2") do |config|
             config.vm.network :private_network, ip: opts[:eth1]
             config.vm.provider "virtualbox" do |v|
                 v.name = opts[:name]
-                v.customize ["modifyvm", :id, "--groups", "/Kubernetes Xenial"]
+                v.customize ["modifyvm", :id, "--groups", "/#{vbox_group}"]
                 v.customize ["modifyvm", :id, "--memory", opts[:mem]]
                 v.customize ["modifyvm", :id, "--cpus", opts[:cpu]]
             end
